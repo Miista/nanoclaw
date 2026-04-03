@@ -248,6 +248,28 @@ async function buildContainerArgs(
     );
   }
 
+  // Colima (and some Docker setups) only bind-mount paths under $HOME.
+  // The OneCLI SDK writes CA certs to os.tmpdir() which on macOS resolves to
+  // /var/folders/… — outside $HOME and inaccessible to the Colima VM.
+  // Relocate any such volume mounts into DATA_DIR (which is always under $HOME).
+  const homeDir = process.env.HOME ?? '';
+  if (homeDir) {
+    const caDestDir = path.join(DATA_DIR, 'certs');
+    fs.mkdirSync(caDestDir, { recursive: true });
+    for (let i = 0; i < args.length - 2; i++) {
+      if (args[i] !== '-v') continue;
+      const parts = args[i + 1].split(':');
+      if (parts.length < 2) continue;
+      const hostPath = parts[0];
+      if (!hostPath.startsWith(homeDir) && fs.existsSync(hostPath) && fs.statSync(hostPath).isFile()) {
+        const destPath = path.join(caDestDir, path.basename(hostPath));
+        fs.copyFileSync(hostPath, destPath);
+        parts[0] = destPath;
+        args[i + 1] = parts.join(':');
+      }
+    }
+  }
+
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());
 
