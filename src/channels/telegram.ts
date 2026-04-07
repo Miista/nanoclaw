@@ -5,6 +5,7 @@ import path from 'path';
 import { Api, Bot } from 'grammy';
 
 import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
+import { processImage } from '../image.js';
 import { readEnvFile } from '../env.js';
 import { resolveGroupFolderPath } from '../group-folder.js';
 import { logger } from '../logger.js';
@@ -297,13 +298,61 @@ export class TelegramChannel implements Channel {
     };
 
     this.bot.on('message:photo', (ctx) => {
-      // Telegram sends multiple sizes; last is largest
+      const chatJid = `tg:${ctx.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) return;
+
       const photos = ctx.message.photo;
       const largest = photos?.[photos.length - 1];
-      storeMedia(ctx, '[Photo]', {
-        fileId: largest?.file_id,
-        filename: `photo_${ctx.message.message_id}`,
-      });
+      if (!largest?.file_id) {
+        storeMedia(ctx, '[Photo]');
+        return;
+      }
+
+      const timestamp = new Date(ctx.message.date * 1000).toISOString();
+      const senderName =
+        ctx.from?.first_name ||
+        ctx.from?.username ||
+        ctx.from?.id?.toString() ||
+        'Unknown';
+      const caption = ctx.message.caption ?? '';
+      const isGroup =
+        ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+
+      this.opts.onChatMetadata(chatJid, timestamp, undefined, 'telegram', isGroup);
+
+      const deliver = (content: string) => {
+        this.opts.onMessage(chatJid, {
+          id: ctx.message.message_id.toString(),
+          chat_jid: chatJid,
+          sender: ctx.from?.id?.toString() || '',
+          sender_name: senderName,
+          content,
+          timestamp,
+          is_from_me: false,
+        });
+      };
+
+      this.bot!.api
+        .getFile(largest.file_id)
+        .then(async (file) => {
+          if (!file.file_path) throw new Error('no file_path');
+          const fileUrl = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`;
+          const resp = await fetch(fileUrl);
+          if (!resp.ok) throw new Error(`download failed: ${resp.status}`);
+          const buffer = Buffer.from(await resp.arrayBuffer());
+          const groupDir = resolveGroupFolderPath(group.folder);
+          const result = await processImage(buffer, groupDir, caption);
+          if (result) {
+            deliver(result.content);
+          } else {
+            deliver(caption ? `[Photo] ${caption}` : '[Photo]');
+          }
+        })
+        .catch((err) => {
+          logger.warn({ err, chatJid }, 'Photo - processing failed');
+          deliver(caption ? `[Photo] ${caption}` : '[Photo]');
+        });
     });
     this.bot.on('message:video', (ctx) => {
       storeMedia(ctx, '[Video]', {
