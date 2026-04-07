@@ -261,7 +261,11 @@ async function buildContainerArgs(
       const parts = args[i + 1].split(':');
       if (parts.length < 2) continue;
       const hostPath = parts[0];
-      if (!hostPath.startsWith(homeDir) && fs.existsSync(hostPath) && fs.statSync(hostPath).isFile()) {
+      if (
+        !hostPath.startsWith(homeDir) &&
+        fs.existsSync(hostPath) &&
+        fs.statSync(hostPath).isFile()
+      ) {
         const destPath = path.join(caDestDir, path.basename(hostPath));
         fs.copyFileSync(hostPath, destPath);
         parts[0] = destPath;
