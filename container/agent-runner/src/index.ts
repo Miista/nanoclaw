@@ -488,8 +488,8 @@ async function runQuery(
         ...(fs.existsSync('/workspace/credentials/gdrive-service-account.json')
           ? {
               gdrive: {
-                command: 'npx',
-                args: ['-y', '@modelcontextprotocol/server-gdrive'],
+                command: 'mcp-server-gdrive',
+                args: [],
                 env: {
                   GOOGLE_APPLICATION_CREDENTIALS:
                     '/workspace/credentials/gdrive-service-account.json',
