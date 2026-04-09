@@ -469,6 +469,7 @@ async function runQuery(
         'Skill',
         'NotebookEdit',
         'mcp__nanoclaw__*',
+        'mcp__gdrive__*',
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -484,6 +485,18 @@ async function runQuery(
             NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
           },
         },
+        ...(fs.existsSync('/workspace/credentials/gdrive-service-account.json')
+          ? {
+              gdrive: {
+                command: 'npx',
+                args: ['-y', '@modelcontextprotocol/server-gdrive'],
+                env: {
+                  GOOGLE_APPLICATION_CREDENTIALS:
+                    '/workspace/credentials/gdrive-service-account.json',
+                },
+              },
+            }
+          : {}),
       },
       hooks: {
         PreCompact: [

@@ -210,6 +210,21 @@ function buildVolumeMounts(
     readonly: false,
   });
 
+  // Google Drive service account credentials (read-only)
+  const gdriveCredentials = path.join(
+    process.env.HOME ?? '',
+    '.nanoclaw',
+    'credentials',
+    'gdrive-service-account.json',
+  );
+  if (fs.existsSync(gdriveCredentials)) {
+    mounts.push({
+      hostPath: gdriveCredentials,
+      containerPath: '/workspace/credentials/gdrive-service-account.json',
+      readonly: true,
+    });
+  }
+
   // Additional mounts validated against external allowlist (tamper-proof from containers)
   if (group.containerConfig?.additionalMounts) {
     const validatedMounts = validateAdditionalMounts(
